@@ -43,15 +43,23 @@ def load_accounts() -> list[str]:
     return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
 
 
-def list_videos(account_url: str) -> list[dict]:
-    """Ask yt-dlp for the video list of an account without downloading anything."""
+def list_videos(account_url: str, full_scan: bool) -> list[dict]:
+    """Ask yt-dlp for the video list of an account without downloading anything.
+
+    full_scan=False (fast check, runs every 5 min): only the 20 most recent
+    uploads, to catch new posts quickly.
+    full_scan=True (slow check, runs hourly): the account's entire video
+    history, to catch videos that were private and have since been made
+    public again.
+    """
     cmd = [
         "yt-dlp",
         "--flat-playlist",
         "--dump-json",
-        "--playlist-end", "20",  # only look at the 20 most recent uploads
         account_url,
     ]
+    if not full_scan:
+        cmd[3:3] = ["--playlist-end", "20"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     videos = []
     for line in result.stdout.splitlines():
@@ -93,6 +101,10 @@ def send_to_telegram(video_path: Path, caption: str) -> bool:
 
 
 def main() -> None:
+    full_scan = "--full" in sys.argv
+    mode = "FULL account history" if full_scan else "recent uploads only"
+    print(f"Run mode: {mode}")
+
     accounts = load_accounts()
     if not accounts:
         return
@@ -104,7 +116,7 @@ def main() -> None:
         print(f"Checking {account} ...")
         seen_ids = set(seen.get(account, []))
         try:
-            videos = list_videos(account)
+            videos = list_videos(account, full_scan)
         except Exception as e:
             print(f"  Failed to list videos for {account}: {e}")
             continue
