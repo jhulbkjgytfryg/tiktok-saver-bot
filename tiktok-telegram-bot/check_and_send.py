@@ -44,14 +44,7 @@ def load_accounts() -> list[str]:
 
 
 def list_videos(account_url: str, full_scan: bool) -> list[dict]:
-    """Ask yt-dlp for the video list of an account without downloading anything.
-
-    full_scan=False (fast check, runs every 5 min): only the 20 most recent
-    uploads, to catch new posts quickly.
-    full_scan=True (slow check, runs hourly): the account's entire video
-    history, to catch videos that were private and have since been made
-    public again.
-    """
+    """Ask yt-dlp for the video list of an account without downloading anything."""
     cmd = [
         "yt-dlp",
         "--flat-playlist",
@@ -67,6 +60,12 @@ def list_videos(account_url: str, full_scan: bool) -> list[dict]:
             videos.append(json.loads(line))
         except json.JSONDecodeError:
             continue
+    if not videos:
+        print(f"  [debug] yt-dlp exit code: {result.returncode}")
+        if result.stderr.strip():
+            print(f"  [debug] yt-dlp stderr:\n{result.stderr.strip()}")
+        if result.stdout.strip():
+            print(f"  [debug] yt-dlp stdout (unparsed):\n{result.stdout.strip()[:2000]}")
     return videos
 
 
@@ -84,7 +83,6 @@ def download_video(url: str, out_path: Path) -> bool:
 def send_to_telegram(video_path: Path, caption: str) -> bool:
     size = video_path.stat().st_size
     if size > MAX_TELEGRAM_BYTES:
-        # Too big for Telegram's bot API — send a text note instead.
         requests.post(
             f"{TELEGRAM_API}/sendMessage",
             data={"chat_id": CHAT_ID, "text": f"{caption}\n\n(Video too large for Telegram, {size // 1_000_000}MB)"},
@@ -126,7 +124,7 @@ def main() -> None:
             print("  Nothing new.")
             continue
 
-        for video in reversed(new_videos):  # oldest new video first
+        for video in reversed(new_videos):
             vid_id = video.get("id")
             url = video.get("url") or video.get("webpage_url")
             title = (video.get("title") or vid_id)[:150]
