@@ -17,12 +17,22 @@ import requests
 ACCOUNTS_FILE = Path("accounts.txt")
 SEEN_FILE = Path("seen.json")
 DOWNLOAD_DIR = Path("downloads")
+COOKIES_FILE = Path("cookies.txt")
 
 BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
-MAX_TELEGRAM_BYTES = 50 * 1024 * 1024
+MAX_TELEGRAM_BYTES = 50 * 1024 * 1024  # Telegram bot API file size limit
+
+
+def cookie_args() -> list[str]:
+    """If a TikTok cookies file was provided, tell yt-dlp to use it — this
+    makes requests look like a logged-in browser instead of an anonymous
+    cloud request, which TikTok otherwise blocks for profile pages."""
+    if COOKIES_FILE.exists() and COOKIES_FILE.stat().st_size > 0:
+        return ["--cookies", str(COOKIES_FILE)]
+    return []
 
 
 def load_seen() -> dict:
@@ -44,15 +54,24 @@ def load_accounts() -> list[str]:
 
 
 def list_videos(account_url: str, full_scan: bool) -> list[dict]:
+    """Ask yt-dlp for the video list of an account without downloading anything.
+
+    full_scan=False (fast check, runs every 5 min): only the 20 most recent
+    uploads, to catch new posts quickly.
+    full_scan=True (slow check, runs hourly): the account's entire video
+    history, to catch videos that were private and have since been made
+    public again.
+    """
     cmd = [
         "yt-dlp",
         "--flat-playlist",
         "--dump-json",
         "-v",
+        *cookie_args(),
         account_url,
     ]
     if not full_scan:
-        cmd[3:3] = ["--playlist-end", "20"]
+        cmd[4:4] = ["--playlist-end", "20"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     videos = []
     for line in result.stdout.splitlines():
@@ -75,6 +94,7 @@ def download_video(url: str, out_path: Path) -> bool:
         "yt-dlp",
         "-o", str(out_path),
         "--no-playlist",
+        *cookie_args(),
         url,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -84,6 +104,7 @@ def download_video(url: str, out_path: Path) -> bool:
 def send_to_telegram(video_path: Path, caption: str) -> bool:
     size = video_path.stat().st_size
     if size > MAX_TELEGRAM_BYTES:
+        # Too big for Telegram's bot API — send a text note instead.
         requests.post(
             f"{TELEGRAM_API}/sendMessage",
             data={"chat_id": CHAT_ID, "text": f"{caption}\n\n(Video too large for Telegram, {size // 1_000_000}MB)"},
@@ -125,7 +146,7 @@ def main() -> None:
             print("  Nothing new.")
             continue
 
-        for video in reversed(new_videos):
+        for video in reversed(new_videos):  # oldest new video first
             vid_id = video.get("id")
             url = video.get("url") or video.get("webpage_url")
             title = (video.get("title") or vid_id)[:150]
