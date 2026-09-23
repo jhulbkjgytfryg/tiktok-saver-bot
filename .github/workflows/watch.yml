@@ -27,6 +27,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Write TikTok cookies
+        run: printf '%s' "$TIKTOK_COOKIES" > cookies.txt
+        env:
+          TIKTOK_COOKIES: ${{ secrets.TIKTOK_COOKIES }}
+
       - name: Run checker (fast, recent uploads)
         if: github.event.schedule != '17 * * * *'
         env:
@@ -40,6 +45,10 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python check_and_send.py --full
+
+      - name: Remove cookies file
+        if: always()
+        run: rm -f cookies.txt
 
       - name: Save updated seen.json
         run: |
