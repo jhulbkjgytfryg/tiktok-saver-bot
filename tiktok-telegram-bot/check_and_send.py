@@ -22,7 +22,7 @@ BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
-MAX_TELEGRAM_BYTES = 50 * 1024 * 1024  # Telegram bot API file size limit
+MAX_TELEGRAM_BYTES = 50 * 1024 * 1024
 
 
 def load_seen() -> dict:
@@ -44,11 +44,11 @@ def load_accounts() -> list[str]:
 
 
 def list_videos(account_url: str, full_scan: bool) -> list[dict]:
-    """Ask yt-dlp for the video list of an account without downloading anything."""
     cmd = [
         "yt-dlp",
         "--flat-playlist",
         "--dump-json",
+        "-v",
         account_url,
     ]
     if not full_scan:
@@ -63,9 +63,10 @@ def list_videos(account_url: str, full_scan: bool) -> list[dict]:
     if not videos:
         print(f"  [debug] yt-dlp exit code: {result.returncode}")
         if result.stderr.strip():
-            print(f"  [debug] yt-dlp stderr:\n{result.stderr.strip()}")
+            tail = result.stderr.strip()[-3000:]
+            print(f"  [debug] yt-dlp stderr (last 3000 chars):\n{tail}")
         if result.stdout.strip():
-            print(f"  [debug] yt-dlp stdout (unparsed):\n{result.stdout.strip()[:2000]}")
+            print(f"  [debug] yt-dlp stdout (unparsed):\n{result.stdout.strip()[:1000]}")
     return videos
 
 
