@@ -5,8 +5,8 @@ permissions:
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
-    - cron: "17 * * * *"
+    - cron: "0 * * * *"     # every hour on the hour — fast check
+    - cron: "0 6 * * *"     # once a day at 6am UTC — full history check
   workflow_dispatch: {}
 
 jobs:
@@ -33,14 +33,14 @@ jobs:
           TIKTOK_COOKIES: ${{ secrets.TIKTOK_COOKIES }}
 
       - name: Run checker (fast, recent uploads)
-        if: github.event.schedule != '17 * * * *'
+        if: github.event.schedule != '0 6 * * *'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python check_and_send.py
 
       - name: Run checker (full account history)
-        if: github.event.schedule == '17 * * * *'
+        if: github.event.schedule == '0 6 * * *'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
